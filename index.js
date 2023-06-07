@@ -29,22 +29,25 @@ async function run() {
     const menuCollection = client.db('bistroDB').collection('menu')
     const reviewsCollection = client.db('bistroDB').collection('reviews')
     const cartCollection = client.db('bistroDB').collection('carts')
+    const usersCollection = client.db('bistroDB').collection('users')
 
     // 1 useMenu.jsx data load
-    app.get('/menu', async(req, res) => {
-        const result = await menuCollection.find().toArray();
-        res.send(result)
+    // http://localhost:5000/menu
+    app.get('/menu', async (req, res) => {
+      const result = await menuCollection.find().toArray();
+      res.send(result)
     })
 
     // 2 Testimonial.jsx data load
-    app.get('/reviews', async(req, res) => {
+    // http://localhost:5000/reviews
+    app.get('/reviews', async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result)
     })
 
     // 3 add item in cart
     // FoodCard.jsx hit here & create new cart collection
-    app.post('/carts', async(req, res) => {
+    app.post('/carts', async (req, res) => {
       const item = req.body;
       // console.log(item);
       const result = await cartCollection.insertOne(item);
@@ -53,19 +56,19 @@ async function run() {
 
     // 4 to view cart items in server
     // http://localhost:5000/carts
-    // app.get('/carts', async(req, res) => {
-    //   const result = await cartCollection.find().toArray();
-    //   res.send(result);
-    // })
+    app.get('/carts', async(req, res) => {
+      const result = await cartCollection.find().toArray();
+      res.send(result);
+    })
 
     // 5 to view cart items Navbar.jsx
-    app.get('/carts', async(req, res) => {
+    app.get('/carts', async (req, res) => {
       const email = req.query.email;
       // console.log(email)
-      if(!email){ 
+      if (!email) {
         res.send([])
       }
-      const query = {email: email};
+      const query = { email: email };
       const result = await cartCollection.find(query).toArray();
       res.send(result);
     })
@@ -73,13 +76,27 @@ async function run() {
     // 6 delete [MyCart.jsx]
     app.delete('/carts/:id', async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await cartCollection.deleteOne(query);
       res.send(result)
     })
 
-   
+    // 7 users related api. store user info to DB
+    app.post('/users', async (req, res) => {
+      const user = req.body;
+      console.log(user)
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    })
 
+    // get user info in server. 
+    // http://localhost:5000/users
+    app.get('/users', async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    })
+
+    // ping to test DB connection
     await client.db("admin").command({ ping: 1 });
     console.log("Bistro Boss Restaurant Server is successfully connected to MongoDB!");
   } finally {
@@ -90,10 +107,10 @@ run().catch(console.dir);
 
 
 app.get('/', (req, res) => {
-    res.send('Bistro Boss Restaurant Server is Running...')
+  res.send('Bistro Boss Restaurant Server is Running...')
 })
 
 app.listen(port, () => {
-    console.log(`Bistro Boss Restaurant Server is Running on port: ${port}`)
+  console.log(`Bistro Boss Restaurant Server is Running on port: ${port}`)
 })
 
