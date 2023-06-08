@@ -56,7 +56,7 @@ async function run() {
 
     // 4 to view cart items in server
     // http://localhost:5000/carts
-    app.get('/carts', async(req, res) => {
+    app.get('/carts', async (req, res) => {
       const result = await cartCollection.find().toArray();
       res.send(result);
     })
@@ -82,14 +82,22 @@ async function run() {
     })
 
     // 7 users related api. store user info to DB
+    // from Register.jsx & SocialLogin.jsx
     app.post('/users', async (req, res) => {
       const user = req.body;
       console.log(user)
+      // social login check user existent
+      const query = {email: user.email};
+      const existingUser = await usersCollection.findOne(query);
+      console.log('already exist user:', existingUser)
+      if(existingUser){
+        return res.send({message: 'user already exist'})
+      }
       const result = await usersCollection.insertOne(user);
       res.send(result);
     })
 
-    // get user info in server. 
+    // 8 get user info in server. 
     // http://localhost:5000/users
     app.get('/users', async (req, res) => {
       const result = await usersCollection.find().toArray();
