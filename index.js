@@ -13,15 +13,15 @@ app.use(express.json());
 // verify tokenize user middleware
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
-  if(!authorization){
-    return res.status(401).send({error: true, message: 'unatthorized access'})
+  if (!authorization) {
+    return res.status(401).send({ error: true, message: 'unatthorized access' })
   }
   // [0]    [1]
   // bearer token
   const token = authorization.split(' ')[1];
   jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
-    if(err){
-      return res.status(401).send({error: true, message: 'unatthorized access Err:'})
+    if (err) {
+      return res.status(401).send({ error: true, message: 'unatthorized access Err:' })
     }
     req.decoded = decoded;
     next();
@@ -56,8 +56,80 @@ async function run() {
     app.post('/jwt', (req, res) => {
       const user = req.body;
       // create unique token for each user & every login, register, sociallogin
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN, {expiresIn: '10h'})
-      res.send({token})
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN, { expiresIn: '10h' })
+      res.send({ token })
+    })
+
+    // warning: use verifyJWT before using verifyAdmin
+    // middleware
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email }
+      const user = await usersCollection.findOne(query);
+      if (user?.role !== 'admin') {
+        return res.status(403).send({ error: true, message: 'forbidden message from verrfyAdmin' });
+      }
+      next();
+    }
+
+    // 8 get user info in server. 
+    // http://localhost:5000/users
+    app.get('/users', verifyJWT, verifyAdmin, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
+    // 7 users related api. store user info to DB
+    // from Register.jsx & SocialLogin.jsx
+    app.post('/users', async (req, res) => {
+      const user = req.body;
+      console.log(user)
+      // social login check user existent
+      const query = { email: user.email };
+      const existingUser = await usersCollection.findOne(query);
+      console.log('already exist user:', existingUser)
+      if (existingUser) {
+        return res.send({ message: 'user already exist' })
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    })
+
+    // check admin user or not
+    // request from useAdmin.jsx
+    app.get('/users/admin/:email', verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      console.log('check admin:', email);
+      if (req.decoded.email !== email) {
+        res.send({ admin: false })
+      }
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const result = { admin: user?.role === 'admin' }
+      res.send(result);
+
+    })
+
+    // update user field
+    // AllUsers.jsx
+    app.patch('/users/admin/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) }
+      const updateUser = {
+        $set: { role: 'admin' }
+      }
+      const result = await usersCollection.updateOne(filter, updateUser)
+      res.send(result)
+    })
+
+    // delete user field
+    // AllUsers.jsx
+    app.delete('/users/admin/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) }
+      const result = await usersCollection.deleteOne(filter)
+      res.send(result)
+
     })
 
     // 1 useMenu.jsx data load
@@ -102,8 +174,8 @@ async function run() {
       // jwt verify: with your token can not acess others data
       // request come from useCart.jsx
       const decodedEmail = req.decoded.email;
-      if(email !== decodedEmail){
-        return res.status(401).send({error: true, message: 'forbidden access! can not access other users data'})
+      if (email !== decodedEmail) {
+        return res.status(401).send({ error: true, message: 'forbidden access! can not access other users data' })
       }
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
@@ -117,67 +189,6 @@ async function run() {
       const result = await cartCollection.deleteOne(query);
       res.send(result)
     })
-
-    // 7 users related api. store user info to DB
-    // from Register.jsx & SocialLogin.jsx
-    app.post('/users', async (req, res) => {
-      const user = req.body;
-      console.log(user)
-      // social login check user existent
-      const query = { email: user.email };
-      const existingUser = await usersCollection.findOne(query);
-      console.log('already exist user:', existingUser)
-      if (existingUser) {
-        return res.send({ message: 'user already exist' })
-      }
-      const result = await usersCollection.insertOne(user);
-      res.send(result);
-    })
-
-    // 8 get user info in server. 
-    // http://localhost:5000/users
-     // activate it --------------- err: http://localhost:5000/carts?email=undefined
-    app.get('/users', async (req, res) => {
-      const result = await usersCollection.find().toArray();
-      res.send(result);
-    });
-
-    // check admin user or not
-    app.get('/users/admin/:email', verifyJWT, async (req, res) => {
-      const email = req.params.email;
-      console.log('check admin:', email);
-      if(req.decoded.email !== email){
-        res.send({admin:false})
-      }
-      const query = {email: email};
-      const user = await usersCollection.findOne(query);
-      const result = {admin : user?.role === 'admin'}
-      res.send(result);
-
-    })
-
-    // update user field
-    // AllUsers.jsx
-    app.patch('/users/admin/:id', async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) }
-      const updateUser = {
-        $set: { role: 'admin' }
-      }
-      const result = await usersCollection.updateOne(filter, updateUser)
-      res.send(result)
-    })
-
-    // delete user field
-    // AllUsers.jsx
-    app.delete('/users/admin/:id', async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) }
-      const result = await usersCollection.deleteOne(filter)
-      res.send(result)
-
-    })
-
 
     // ping to test DB connection
     await client.db("admin").command({ ping: 1 });
