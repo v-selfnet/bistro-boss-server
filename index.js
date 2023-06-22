@@ -139,6 +139,24 @@ async function run() {
       res.send(result)
     })
 
+    // upload image link
+    // from /dashboard/AddItem.jsx
+    app.post('/menu', verifyJWT, verifyAdmin, async (req, res) => {
+      const newItem = req.body;
+      console.log(newItem)
+      const result = await menuCollection.insertOne(newItem);
+      res.send(result);
+    })
+
+    // delete menu item only admin
+    // from /Dashboard/ManageItems.jsx
+    app.delete('/menu/:id', verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await menuCollection.deleteOne(query)
+      res.send(result)
+    })
+
     // 2 Testimonial.jsx data load
     // http://localhost:5000/reviews
     app.get('/reviews', async (req, res) => {
