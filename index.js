@@ -6,6 +6,9 @@ const cors = require('cors');
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
+const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY);
+
+
 // middleware
 app.use(cors());
 app.use(express.json());
@@ -49,6 +52,33 @@ async function run() {
     const reviewsCollection = client.db('bistroDB').collection('reviews')
     const cartCollection = client.db('bistroDB').collection('carts')
     const usersCollection = client.db('bistroDB').collection('users')
+    const paymentCollection = client.db('bistroDB').collection('payments')
+
+    // payment gateway intent
+    app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100); // stripe count cents. [1 x 100 = 1 usd]
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+      res.send({ clientSecret: paymentIntent.client_secret });
+    })
+
+    // payment api 
+    // from CheckoutForm.jsx
+    app.post('/payment', verifyJWT, async (req, res) => {
+      // insert cart data which is paid
+      const payment = req.body;
+      const insertResult = await paymentCollection.insertOne(payment);
+
+      // delete cart data which paid
+      const query = { _id: { $in: payment.cartItems.map(id => new ObjectId(id)) } }
+      const deleteResult = await cartCollection.deleteMany(query);
+      res.send({ insertResult, deleteResult });
+    })
+
 
     // 1-JWT: Json Web Token
     // create token
@@ -152,7 +182,7 @@ async function run() {
     // from /Dashboard/ManageItems.jsx
     app.delete('/menu/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await menuCollection.deleteOne(query)
       res.send(result)
     })
@@ -206,6 +236,34 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await cartCollection.deleteOne(query);
       res.send(result)
+    })
+
+    // admin dashboard
+    app.get('/admin-stats', verifyJWT, verifyAdmin, async (req, res) => {
+      const users = await usersCollection.estimatedDocumentCount();
+      const products = await menuCollection.estimatedDocumentCount();
+      const orders = await paymentCollection.estimatedDocumentCount();
+
+        // best way to get sum of the price field is to use group and sum operator
+      /*
+        await paymentCollection.aggregate([
+          {
+            $group: {
+              _id: null,
+              total: { $sum: '$price' }
+            }
+          }
+        ]).toArray()
+      */
+
+      const payment = await paymentCollection.find().toArray();
+      const revenue = payment.reduce((sum, pay) => sum + pay.price, 0)
+      res.send({
+        revenue,
+        users,
+        products,
+        orders
+      })
     })
 
     // ping to test DB connection
